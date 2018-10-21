@@ -1,4 +1,4 @@
-module Page.Home exposing (Model, Msg, init, subscriptions, update, view)
+module Page.Home exposing (Model, Msg, init, subscriptions, toSession, update, view)
 
 import Html exposing (Html, div, text)
 import Session exposing (Session)
@@ -8,9 +8,9 @@ type alias Model =
     { session : Session }
 
 
-init : Session -> Model
+init : Session -> ( Model, Cmd Msg )
 init session =
-    Model session
+    ( Model session, Cmd.none )
 
 
 
@@ -36,3 +36,8 @@ view model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.none
+
+
+toSession : Model -> Session
+toSession model =
+    model.session

@@ -5,7 +5,7 @@ import Browser.Navigation as Nav
 import Html exposing (Html, a, b, div, h1, img, li, text, ul)
 import Html.Attributes exposing (href, src)
 import Page.Home as Home
-import Route exposing (Route, fromUrl)
+import Route exposing (Route)
 import Session exposing (Session)
 import Url
 
@@ -35,27 +35,28 @@ type Model
     | Redirect Session
 
 
-
--- | Simulation Simulation.Model
--- { key : Nav.Key
--- , url : Url.Url
--- , stringThing : String
--- }
-
-
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     changeRouteTo (Route.fromUrl url)
         (Redirect (Session.init navKey))
 
 
-
--- ( { key = key, url = url, stringThing = "" }, Cmd.none )
-
-
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
 changeRouteTo maybeRoute model =
-    ( model, Cmd.none )
+    let
+        session =
+            toSession model
+    in
+    case maybeRoute of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just Route.Home ->
+            Home.init session
+                |> updateWith Home GotHomeMsg
+
+        _ ->
+            ( model, Cmd.none )
 
 
 
@@ -66,24 +67,48 @@ type Msg
     = NoOp
     | UrlChanged Url.Url
     | LinkClicked Browser.UrlRequest
+    | GotHomeMsg Home.Msg
+
+
+toSession : Model -> Session
+toSession model =
+    case model of
+        Home home ->
+            Home.toSession home
+
+        Redirect session ->
+            session
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        LinkClicked urlRequest ->
+    case ( msg, model ) of
+        ( LinkClicked urlRequest, _ ) ->
             case urlRequest of
                 Browser.Internal url ->
-                    ( model, Nav.pushUrl model.key (Url.toString url) )
+                    ( model
+                    , Nav.pushUrl (Session.navKey (toSession model)) (Url.toString url)
+                    )
 
                 Browser.External href ->
                     ( model, Cmd.none )
 
-        UrlChanged url ->
-            ( { model | url = url }, Cmd.none )
+        ( UrlChanged url, _ ) ->
+            changeRouteTo (Route.fromUrl url) model
 
-        NoOp ->
+        ( GotHomeMsg subMsg, Home home ) ->
+            Home.update subMsg home
+                |> updateWith Home GotHomeMsg
+
+        ( _, _ ) ->
             ( model, Cmd.none )
+
+
+updateWith : (subModel -> Model) -> (subMsg -> Msg) -> ( subModel, Cmd subMsg ) -> ( Model, Cmd Msg )
+updateWith toModel toMsg ( subModel, subCmd ) =
+    ( toModel subModel
+    , Cmd.map toMsg subCmd
+    )
 
 
 
@@ -92,17 +117,31 @@ update msg model =
 
 view : Model -> Browser.Document Msg
 view model =
-    { title = "Square First Chess"
-    , body = [ viewBody model ]
-    }
+    let
+        viewPage page toMsg config =
+            let
+                { title, body } =
+                    Page.view page config
+            in
+            { title = title
+            , body = List.map (Html.map toMsg) body
+            }
+    in
+    case model of
+        Redirect _ ->
+            viewPage
 
 
 viewBody : Model -> Html Msg
 viewBody model =
     div
         []
-        [ text "The current URL is: "
-        , b [] [ text (Url.toString model.url) ]
+        [ case model of
+            Home homeModel ->
+                Home.view homeModel
+
+            _ ->
+                text "not home"
         , ul []
             [ viewLink "/home"
             , viewLink "/profile"
